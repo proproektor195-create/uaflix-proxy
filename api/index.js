@@ -1,101 +1,281 @@
+/*
+ * Vercel proxy для власного плагіна Lampa.
+ *
+ * Підтримує:
+ *   ?url=https%3A%2F%2F...
+ *   &ref=https%3A%2F%2F...
+ *   &method=POST
+ *   &body=...
+ *
+ * Доступ обмежений списком ALLOWED_HOSTS.
+ */
+
+var ALLOWED_HOSTS = [
+    'uafix.net',
+    'filmixapp.vip',
+    'filmix.ac',
+    'filmix.my',
+    'tortuga.wtf',
+    'ashdi.vip',
+    'zetvideo.net'
+];
+
+function corsHeaders() {
+    return {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, POST, OPTIONS',
+        'Access-Control-Allow-Headers':
+            'Content-Type, Range, Accept, Accept-Language',
+        'Access-Control-Expose-Headers':
+            'Content-Length, Content-Range, Accept-Ranges, X-Final-Url, X-Upstream-Status',
+        'Access-Control-Max-Age': '86400'
+    };
+}
+
+function json(data, status) {
+    return new Response(JSON.stringify(data, null, 2), {
+        status: status || 200,
+        headers: Object.assign(corsHeaders(), {
+            'Content-Type': 'application/json; charset=utf-8'
+        })
+    });
+}
+
+function hostAllowed(hostname) {
+    hostname = String(hostname || '').toLowerCase();
+
+    for (var i = 0; i < ALLOWED_HOSTS.length; i++) {
+        var allowed = ALLOWED_HOSTS[i];
+
+        if (
+            hostname === allowed ||
+            hostname.slice(-(allowed.length + 1)) === '.' + allowed
+        ) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function privateHost(hostname) {
+    hostname = String(hostname || '').toLowerCase();
+
+    if (
+        hostname === 'localhost' ||
+        hostname === '0.0.0.0' ||
+        hostname === '127.0.0.1' ||
+        hostname === '::1'
+    ) {
+        return true;
+    }
+
+    if (/^10\./.test(hostname)) return true;
+    if (/^192\.168\./.test(hostname)) return true;
+    if (/^169\.254\./.test(hostname)) return true;
+    if (/^172\.(1[6-9]|2[0-9]|3[01])\./.test(hostname)) return true;
+
+    return false;
+}
+
 export default {
     async fetch(request) {
-        const url = new URL(request.url);
+        var requestUrl = new URL(request.url);
+        var cors = corsHeaders();
 
-        const cors = {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-            "Access-Control-Allow-Headers": "*"
-        };
-
-        if (request.method === "OPTIONS") {
+        /*
+         * CORS preflight
+         */
+        if (request.method === 'OPTIONS') {
             return new Response(null, {
                 status: 204,
                 headers: cors
             });
         }
 
-        // Головна перевірка
-        if (url.pathname === "/api") {
-            return Response.json(
-                {
-                    ok: true,
-                    service: "Lampa API",
-                    message: "Vercel працює"
-                },
-                {
-                    headers: cors
-                }
+        /*
+         * Контрольна перевірка:
+         * https://uaflix-proxy.vercel.app/api
+         */
+        var targetRaw = requestUrl.searchParams.get('url');
+
+        if (!targetRaw) {
+            return json({
+                ok: true,
+                service: 'Lampa UA proxy',
+                provider: 'Vercel',
+                usage: '/api?url=https%3A%2F%2Fexample.com',
+                allowedHosts: ALLOWED_HOSTS
+            });
+        }
+
+        var target;
+
+        try {
+            target = new URL(targetRaw);
+        } catch (error) {
+            return json({
+                ok: false,
+                error: 'Некоректний параметр url'
+            }, 400);
+        }
+
+        if (
+            target.protocol !== 'http:' &&
+            target.protocol !== 'https:'
+        ) {
+            return json({
+                ok: false,
+                error: 'Дозволені тільки HTTP та HTTPS'
+            }, 400);
+        }
+
+        if (
+            privateHost(target.hostname) ||
+            !hostAllowed(target.hostname)
+        ) {
+            return json({
+                ok: false,
+                error: 'Хост не дозволений',
+                hostname: target.hostname
+            }, 403);
+        }
+
+        var requestedMethod =
+            String(requestUrl.searchParams.get('method') || 'GET')
+                .toUpperCase();
+
+        if (
+            requestedMethod !== 'GET' &&
+            requestedMethod !== 'POST' &&
+            requestedMethod !== 'HEAD'
+        ) {
+            return json({
+                ok: false,
+                error: 'Метод не дозволений'
+            }, 405);
+        }
+
+        var referer =
+            requestUrl.searchParams.get('ref') ||
+            target.origin + '/';
+
+        var headers = new Headers();
+
+        headers.set(
+            'Accept',
+            request.headers.get('Accept') ||
+            'text/html,application/xhtml+xml,application/json,text/plain,*/*'
+        );
+
+        headers.set(
+            'Accept-Language',
+            request.headers.get('Accept-Language') ||
+            'uk-UA,uk;q=0.9,en;q=0.8'
+        );
+
+        headers.set(
+            'User-Agent',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ' +
+            'AppleWebKit/537.36 (KHTML, like Gecko) ' +
+            'Chrome/124.0.0.0 Safari/537.36'
+        );
+
+        headers.set('Referer', referer);
+
+        try {
+            var refUrl = new URL(referer);
+            headers.set('Origin', refUrl.origin);
+        } catch (error) {
+            headers.set('Origin', target.origin);
+        }
+
+        /*
+         * Для перемотування та часткового завантаження відео.
+         */
+        var range = request.headers.get('Range');
+
+        if (range) {
+            headers.set('Range', range);
+        }
+
+        var upstreamOptions = {
+            method: requestedMethod,
+            headers: headers,
+            redirect: 'follow'
+        };
+
+        /*
+         * Старий плагін передає POST-дані через параметр body.
+         */
+        if (requestedMethod === 'POST') {
+            upstreamOptions.body =
+                requestUrl.searchParams.get('body') || '';
+
+            headers.set(
+                'Content-Type',
+                'application/x-www-form-urlencoded; charset=UTF-8'
             );
         }
 
-        // Тест зовнішнього URL
-        if (url.pathname === "/api/test") {
+        try {
+            var upstream = await fetch(
+                target.toString(),
+                upstreamOptions
+            );
 
-            const target = url.searchParams.get("url");
+            var responseHeaders = new Headers();
 
-            if (!target) {
-                return Response.json(
-                    {
-                        ok: false,
-                        error: "Не вказаний параметр url"
-                    },
-                    {
-                        status: 400,
-                        headers: cors
-                    }
-                );
+            Object.keys(cors).forEach(function (name) {
+                responseHeaders.set(name, cors[name]);
+            });
+
+            var copyHeaders = [
+                'Content-Type',
+                'Content-Length',
+                'Content-Range',
+                'Accept-Ranges',
+                'Cache-Control',
+                'ETag',
+                'Last-Modified'
+            ];
+
+            for (var i = 0; i < copyHeaders.length; i++) {
+                var value =
+                    upstream.headers.get(copyHeaders[i]);
+
+                if (value) {
+                    responseHeaders.set(copyHeaders[i], value);
+                }
             }
 
-            try {
-                const response = await fetch(target, {
-                    redirect: "follow",
-                    headers: {
-                        "Accept": "*/*",
-                        "User-Agent": "Mozilla/5.0"
-                    }
-                });
+            responseHeaders.set(
+                'X-Upstream-Status',
+                String(upstream.status)
+            );
 
-                const body = await response.text();
+            responseHeaders.set(
+                'X-Final-Url',
+                upstream.url || target.toString()
+            );
 
-                return Response.json(
-                    {
-                        ok: response.ok,
-                        status: response.status,
-                        finalUrl: response.url,
-                        contentType:
-                            response.headers.get("content-type"),
-                        preview: body.slice(0, 1000)
-                    },
-                    {
-                        headers: cors
-                    }
-                );
-
-            } catch (error) {
-
-                return Response.json(
-                    {
-                        ok: false,
-                        error: String(error)
-                    },
-                    {
-                        status: 502,
-                        headers: cors
-                    }
-                );
-            }
-        }
-
-        return Response.json(
-            {
+            return new Response(
+                requestedMethod === 'HEAD'
+                    ? null
+                    : upstream.body,
+                {
+                    status: upstream.status,
+                    statusText: upstream.statusText,
+                    headers: responseHeaders
+                }
+            );
+        } catch (error) {
+            return json({
                 ok: false,
-                error: "Route not found"
-            },
-            {
-                status: 404,
-                headers: cors
-            }
-        );
+                error: 'Помилка запиту до джерела',
+                details: String(error),
+                target: target.toString()
+            }, 502);
+        }
     }
 };
