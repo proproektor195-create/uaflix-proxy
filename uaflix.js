@@ -138,6 +138,9 @@
 
             code = replaceEnsureAuth(code);
 
+            // Новий ключ сховища примусово запускає чисту авторизацію Filmix.
+            code = code.replace(/ua_fx_token/g, 'ua_fx_token_v2');
+
             // Дозволяє повторний запуск після видалення старої зламаної версії.
             try { delete window.uaflix_plugin; } catch (e) { window.uaflix_plugin = false; }
 
