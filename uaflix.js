@@ -12,7 +12,8 @@
     window.uaflix_plugin = true;
 
     // Адреса проксі (див. worker.js)
-    var PROXY = 'https://uaflix-proxy-747ny280dfem.proproektor19583.deno.net/';
+    var PROXY = 'https://uaflix-proxy.vercel.app/api';
+
 
     var PROVIDERS = [];
 
