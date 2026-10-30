@@ -58,6 +58,23 @@ function hostAllowed(hostname) {
     return false;
 }
 
+/*
+ * Filmix API віддає 404 {"message":null} на сторінку фільму (post/{id}),
+ * якщо запит приходить з браузерним User-Agent, Referer/Origin чи Accept.
+ * Тому для Filmix шлемо UA застосунку й нічого зайвого.
+ */
+var FILMIX_UA = 'okhttp/4.9.3';
+
+function isFilmix(hostname) {
+    hostname = String(hostname || '').toLowerCase();
+    return (
+        hostname === 'filmixapp.vip' ||
+        hostname.slice(-'.filmixapp.vip'.length) === '.filmixapp.vip' ||
+        hostname === 'filmixapp.cyou' ||
+        hostname.slice(-'.filmixapp.cyou'.length) === '.filmixapp.cyou'
+    );
+}
+
 function privateHost(hostname) {
     hostname = String(hostname || '').toLowerCase();
 
@@ -197,6 +214,14 @@ export default {
 
         if (range) {
             headers.set('Range', range);
+        }
+
+        /*
+         * Filmix: лише User-Agent застосунку, без Referer/Origin/Accept.
+         */
+        if (isFilmix(target.hostname)) {
+            headers = new Headers();
+            headers.set('User-Agent', FILMIX_UA);
         }
 
         var upstreamOptions = {
