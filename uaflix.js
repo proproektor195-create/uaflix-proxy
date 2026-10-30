@@ -660,22 +660,45 @@
                 }, fail);
             },
 
-            resolve: function (entry, ok, fail) {
-                ensureAuth(function (token) {
-                    getJson('post/' + entry.id, '', token, function (found) {
-                        if (!found || !found.player_links) return fail('Filmix: немає даних про відео');
-                        var pl = found.player_links;
-                        var tree = null;
+            if (!found) {
+    return fail('Filmix: порожня відповідь post');
+}
 
-                        if (pl.playlist && Object.keys(pl.playlist).length) tree = seriesTree(pl.playlist);
-                        else if (pl.movie && pl.movie.length) tree = movieTree(pl.movie);
+var pl = found.player_links || {};
+var tree = null;
 
-                        if (!tree || !tree.children.length) return fail('Filmix: контент знайдено, але посилань на відео немає (можливо, потрібна підписка)');
-                        ok(tree);
-                    }, fail);
-                }, fail);
-            }
-        };
+if (pl.playlist && Object.keys(pl.playlist).length) {
+    tree = seriesTree(pl.playlist);
+}
+else if (pl.movie && pl.movie.length) {
+    tree = movieTree(pl.movie);
+}
+
+if (!tree || !tree.children || !tree.children.length) {
+    var playerKeys = [];
+
+    try {
+        playerKeys = Object.keys(pl);
+    }
+    catch (e) { }
+
+    banner(
+        'Filmix: player_links без розпізнаних відео' +
+        ' | поля player_links: ' +
+        (playerKeys.length ? playerKeys.join(', ') : 'порожньо') +
+        ' | поля відповіді: ' +
+        Object.keys(found).join(', '),
+        30000
+    );
+
+    return fail(
+        'структура відео змінилася; поля: ' +
+        (playerKeys.join(', ') || 'player_links порожній')
+    );
+}
+
+ok(tree);
+
     })());
 
     // =====================================================================
