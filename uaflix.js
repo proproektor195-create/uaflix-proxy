@@ -15,6 +15,8 @@
     var SOURCE = 'https://cdn.jsdelivr.net/gh/proproektor195-create/uaflix-proxy@5a590e1/uaflix.js';
     var VERCEL_PROXY = 'https://uaflix-proxy.vercel.app/api';
     var FILMIX_API = 'http://filmixapp.cyou/api/v2/';
+    // Тимчасова діагностика: показувати адресу відео Filmix перед запуском (постав false, коли все працює)
+    var DEBUG_URL = true;
 
     // Код, який вставляється в базовий плагін (ES5, у його області видимості)
     var FX_HTTP = [
@@ -78,6 +80,12 @@
 
         // 2) не понижувати посилання на відео до http
         code = must(code, ".replace('https://', 'http://')", '', 'https->http');
+
+        // 3) діагностика: адреса відео на екрані
+        if (DEBUG_URL) {
+            code = must(code, 'Lampa.Player.play(data);',
+                "if (play.direct) banner('URL: ' + data.url, 40000);\n        Lampa.Player.play(data);", 'play');
+        }
 
         return code;
     }
