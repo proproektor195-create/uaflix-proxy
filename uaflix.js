@@ -538,17 +538,31 @@
 
         // file закінчується на _<якість>.mp4 -> посилання для плеєра з вибором якості
         function buildPlay(file, qualities) {
-            var parts = file.split('?');
-            var base = parts[0];
-            var query = parts.length > 1 ? '?' + parts.slice(1).join('?') : '';
-            var link = base.slice(0, base.lastIndexOf('_')) + '_';
-            var qmap = {};
-            qualities.forEach(function (q) {
-                qmap[q + 'p'] = link + q + '.mp4' + query;
-            var pref = (store('video_quality_default') || '1080') + 'p';
-            var url = qmap[pref] || qmap[Math.max.apply(null, qualities) + 'p'];
-            return { url: url, quality: qmap, direct: true, ref: FX_REF, headers: { 'Referer': FX_REF, 'User-Agent': FX_UA } };
+    var parts = file.split('?');
+    var base = parts[0];
+    var query = parts.length > 1 ? '?' + parts.slice(1).join('?') : '';
+    var link = base.slice(0, base.lastIndexOf('_')) + '_';
+    var qmap = {};
+
+    qualities.forEach(function (q) {
+        qmap[q + 'p'] = (link + q + '.mp4' + query).replace('https://', 'http://');
+    });
+
+    var pref = (store('video_quality_default') || '1080') + 'p';
+    var url = qmap[pref] || qmap[Math.max.apply(null, qualities) + 'p'];
+
+    return {
+        url: url,
+        quality: qmap,
+        direct: true,
+        ref: FX_REF,
+        headers: {
+            'Referer': FX_REF,
+            'User-Agent': FX_UA
         }
+    };
+}
+
 
         function allowedQualities(list) {
             return (list || []).map(function (q) { return parseInt(q, 10); }).filter(function (q) { return q > 0 && q <= maxQ; });
