@@ -9,10 +9,10 @@
  *
  * Доступ обмежений списком ALLOWED_HOSTS.
  */
-
 var ALLOWED_HOSTS = [
     'uafix.net',
     'filmixapp.vip',
+    'filmixapp.cyou',
     'filmix.ac',
     'filmix.my',
     'tortuga.wtf',
