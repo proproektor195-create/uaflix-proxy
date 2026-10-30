@@ -431,7 +431,7 @@
     // =====================================================================
 
     PROVIDERS.push((function () {
-        var API = 'https://filmixapp.vip/api/v2/';
+        var API = 'http://filmixapp.cyou/api/v2/';
         var FX_REF = 'https://filmix.ac/';
         var FX_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36';
         var maxQ = 720;          // без PRO Filmix віддає до 720p
