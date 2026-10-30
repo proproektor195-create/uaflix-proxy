@@ -23,7 +23,7 @@ const CORS = {
   'Access-Control-Expose-Headers': 'X-Final-Url, X-Upstream-Status',
 };
 
-// Той самий User-Agent і заголовки, що в Kotlin-провайдера (деякі сайти ріжуть "чужі" браузери)
+// User-Agent беремо з пристрою (він свіжий і схожий на справжній браузер); цей — запасний
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 const ACCEPT = 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8';
 
@@ -50,7 +50,7 @@ export default {
     const isPost = (self.searchParams.get('method') || '').toUpperCase() === 'POST';
     const headers = {
       Referer: ref,
-      'User-Agent': UA,
+      'User-Agent': request.headers.get('User-Agent') || UA,
       Accept: ACCEPT,
       'Accept-Language': 'uk-UA,uk;q=0.9,en-US;q=0.8,en;q=0.7',
     };
